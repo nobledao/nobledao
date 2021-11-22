@@ -1,0 +1,28 @@
+[package]
+name = "nobilitydao-cli"
+version = "0.1.0"
+description = "Nobility DAO Program"
+authors = ["Nobility DAO Maintainers <michaeljedgar@gmail.com>"]
+repository = "https://github.com/mje-testing/nobility-dao"
+license = "AGPL"
+edition = "2018"
+
+[dependencies]
+borsh = "0.9.1"
+borsh-derive = "0.9.0"
+chrono = "0.4.19"
+clap = "2.33.3"
+solana-clap-utils = "1.8.1"
+solana-cli-config = "1.8.1"
+solana-client = "1.8.1"
+solana-logger = "1.8.1"
+solana-sdk = "1.8.1"
+url = "2.1.0"
+nobilitydao = { version = "0.1.0", path = "../program", features = ["no-entrypoint"] }
+
+[[bin]]
+name = "nobilitydao"
+path = "src/main.rs"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
