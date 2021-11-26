@@ -28,7 +28,7 @@ pub enum TitleInstruction {
     /// Accounts expected by this instruction:
     ///
     /// 0. `[writable, signer]` Wallet account for title creator
-    /// 1. `[writable]` House account for title creator (will be signed by program)
+    /// 1. `[]` House account for title creator (will be signed by program)
     /// 2. `[writable]` New title account (will be signed by program)
     /// 3. `[writable]` Liege title account (will be signed by program)
     CreateTitle{
@@ -44,6 +44,8 @@ pub enum TitleInstruction {
         display_name: [u8; 128],
         /// Address of liege title. All zeroes for root title.
         liege_address: Pubkey,
+        /// Index of the title into the liege's vassal vector.
+        liege_vassal_index : u8,
     }
 }
 
@@ -64,6 +66,41 @@ pub fn create_house(
         data: TitleInstruction::CreateHouse {
             coat_of_arms: *coat_of_arms,
             display_name: *display_name,
+        }
+        .try_to_vec().unwrap(),
+    }
+}
+
+/// Create a new CreateTitle instruction.
+pub fn create_title(
+    user_wallet_address: &Pubkey,
+    house_address: &Pubkey,
+    new_title_address: &Pubkey,
+    liege_address: &Pubkey,
+    rank: u8,
+    kind: u8,
+    required_stake_lamports: u64,
+    liege_vassal_index: u8,
+    coat_of_arms: &[u8; 128],
+    display_name: &[u8; 128],
+) -> Instruction {
+    Instruction {
+        program_id: id(),
+        accounts: vec![
+            AccountMeta::new(*user_wallet_address, true),
+            AccountMeta::new(*house_address, false),
+            AccountMeta::new(*new_title_address, false),
+            AccountMeta::new(*liege_address, false),
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        ],
+        data: TitleInstruction::CreateTitle {
+            rank: rank,
+            kind: kind,
+            required_stake_lamports: required_stake_lamports,
+            coat_of_arms: *coat_of_arms,
+            display_name: *display_name,
+            liege_address: *liege_address,
+            liege_vassal_index: liege_vassal_index,
         }
         .try_to_vec().unwrap(),
     }

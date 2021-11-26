@@ -85,15 +85,36 @@ pub struct TitleData {
     /// Liege title address. Immutable. All zeroes if this is the root title.
     pub liege_address: Pubkey,
 
+    /// Index of the title in the list of the liege's vassals. Immutable. Used to
+    /// form a seed for this title's address.
+    pub liege_vassal_index : u8,
+
     /// Vassal title addresses. Mutable.
     pub vassal_addresses: Vec<Pubkey>,
 }
 
+/// Maximum number of vassals per title.
+pub const MAX_VASSALS: usize = 64;
+
+/// Minimum rank value
+pub const MIN_RANK: u8 = 1;
+/// Maximum rank value
+pub const MAX_RANK: u8 = 6;
+/// Minimum kind value
+pub const MIN_KIND: u8 = 1;
+/// Maximum kind value
+pub const MAX_KIND: u8 = 2;
+
 impl TitleData {
-    /// Version to fill in on new created accounts
+    /// Version to fill in on new created accounts.
     pub const CURRENT_VERSION: u8 = 1;
-    /// Serialized size of the struct
-    pub const SIZE: usize = 2 + 1 + 1 + 8 + 8 + 128 + 128;
+    /// Lifecycle state that is created but not active (never sold/staked)
+    pub const INACTIVE_STATE: u8 = 1;
+    /// Lifecycle state that is active (stakde)
+    pub const ACTIVE_STATE: u8 = 2;
+
+    /// Serialized size of the struct.
+    pub const SIZE: usize = 1 + 1 + 1 + 1 + 8 + 8 + 128 + 128 + 32 + 32 + 32 + 1 + 4 + (32 * MAX_VASSALS);
 }
 
 impl IsInitialized for TitleData {
@@ -106,6 +127,7 @@ impl IsInitialized for TitleData {
             && self.sale_price_lamports > 0
     }
 }
+
 
 #[cfg(test)]
 pub mod tests {
@@ -129,8 +151,8 @@ pub mod tests {
         let TEST_RECORD_DATA: HouseData = HouseData {
             version: TEST_VERSION,
             governance_token_supply: 1,
-            coat_of_arms: vec![0; 128],
-            display_name: vec![0; 128],
+            coat_of_arms: [0; 128],
+            display_name: [0; 128],
             prestige: 10000,
             virtue: 10000,
         };
