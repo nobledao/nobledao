@@ -16,10 +16,10 @@ pub struct HouseData {
     pub governance_token_supply: u16,
 
     /// The URI for the coat of arms. *Mutable*. Null-terminated.
-    pub coat_of_arms: [u8; 128],
+    pub coat_of_arms: String,
 
     /// The Display name for this noble house. Immutable. Null-terminated.
-    pub display_name: [u8; 128],
+    pub display_name: String,
 
     /// Total prestige accumulated by this house. *Mutable*.
     pub prestige: i32,
@@ -32,7 +32,7 @@ impl HouseData {
     /// Version to fill in on new created accounts
     pub const CURRENT_VERSION: u16 = 1;
     /// Serialized size of the struct
-    pub const SIZE: usize = 4 + 128 + 128 + 4 + 4;
+    pub const SIZE: usize = 2 + 2 + 128 + 128 + 4 + 4;
 }
 
 impl IsInitialized for HouseData {
@@ -70,10 +70,10 @@ pub struct TitleData {
     pub sale_price_lamports: u64,
 
     /// The URI for the coat of arms. *Mutable*. Null-terminated.
-    pub coat_of_arms: [u8; 128],
+    pub coat_of_arms: String,
 
-    /// Title name. Immutable. Null-terminated.
-    pub display_name: [u8; 128],
+    /// Title name. Immutable. Null-terminated. Maximum length: 128.
+    pub display_name: String,
 
     /// House address holding the title. *Mutable*. Never all zeroes.
     pub holder_house_address: Pubkey,
@@ -113,7 +113,7 @@ impl TitleData {
     /// Lifecycle state that is active (stakde)
     pub const ACTIVE_STATE: u8 = 2;
 
-    /// Serialized size of the struct.
+    /// Serialized maximum size of the struct.
     pub const SIZE: usize = 1 + 1 + 1 + 1 + 8 + 8 + 128 + 128 + 32 + 32 + 32 + 1 + 4 + (32 * MAX_VASSALS);
 }
 
@@ -151,8 +151,8 @@ pub mod tests {
         let TEST_RECORD_DATA: HouseData = HouseData {
             version: TEST_VERSION,
             governance_token_supply: 1,
-            coat_of_arms: [0; 128],
-            display_name: [0; 128],
+            coat_of_arms: String::from_utf8(vec![0; 128]).unwrap(),
+            display_name: String::from_utf8(vec![0; 128]).unwrap(),
             prestige: 10000,
             virtue: 10000,
         };

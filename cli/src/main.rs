@@ -1,36 +1,28 @@
 use {
-    borsh::BorshDeserialize,
-    chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc},
     clap::{
         crate_description, crate_name, crate_version, value_t_or_exit, App, AppSettings, Arg,
         SubCommand,
     },
-    nobilitydao::state::{
-        HouseData, TitleData, MAX_KIND, MAX_RANK, MAX_VASSALS, MIN_KIND, MIN_RANK,
+    nobilitydao::{
+        state::{HouseData, TitleData, MAX_KIND, MAX_RANK, MAX_VASSALS, MIN_KIND, MIN_RANK},
+        utils::try_from_slice_checked,
     },
     solana_clap_utils::{
-        input_parsers::{keypair_of, pubkey_of, value_of},
+        input_parsers::{keypair_of, pubkey_of},
         input_validators::{
-            is_keypair, is_url, is_valid_percentage, is_valid_pubkey, is_within_range,
+            is_keypair, is_url, is_valid_pubkey, is_within_range,
         },
     },
     solana_client::rpc_client::RpcClient,
     solana_sdk::{
-        clock::UnixTimestamp,
         commitment_config::CommitmentConfig,
         native_token::lamports_to_sol,
-        program_pack::Pack,
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair, Signer},
         transaction::Transaction,
     },
     std::{
-        collections::HashMap,
-        fmt::Debug,
         fmt::Display,
-        fs::File,
-        io::Write,
-        time::{Duration, SystemTime, UNIX_EPOCH},
     },
 };
 
@@ -284,8 +276,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let house_addr = nobilitydao::get_house_address(&user_address);
             println!("House Address: {}", house_addr);
             let housedata = get_house(&rpc_client, &house_addr)?;
-            let coa_url = std::str::from_utf8(&housedata.coat_of_arms)?;
-            let display_name = std::str::from_utf8(&housedata.display_name)?;
+            let coa_url = housedata.coat_of_arms;
+            let display_name = housedata.display_name;
             println!("Display Name: {}", display_name);
             println!("Coat of Arms: {}", coa_url);
             Ok(())
@@ -354,7 +346,7 @@ fn get_house(rpc_client: &RpcClient, house_address: &Pubkey) -> Result<HouseData
 
     match account {
         None => Err(format!("House {} does not exist", house_address)),
-        Some(account) => HouseData::try_from_slice(&account.data)
+        Some(account) => try_from_slice_checked::<HouseData>(&account.data, HouseData::SIZE)
             .map_err(|err| format!("Failed to deserialize house {}: {}", house_address, err)),
     }
 }
@@ -369,31 +361,28 @@ fn get_title(rpc_client: &RpcClient, title_address: &Pubkey) -> Result<TitleData
 
     match account {
         None => Err(format!("Title {} does not exist", title_address)),
-        Some(account) => {
-            let liege_title_data: Result<TitleData, std::io::Error> = {
-                let v = &account.data.as_slice();
-                let mut v_mut: &[u8] = *v;
-                let r = TitleData::deserialize(&mut v_mut);
-                r
-            };
-            liege_title_data.map_err(|err| err.to_string())
-            // TitleData::try_from_slice(&account.data)
-            // .map_err(|err| format!("Failed to deserialize title {}: {}", title_address, err))
-        },
+        Some(account) => try_from_slice_checked::<TitleData>(&account.data, TitleData::SIZE)
+            .map_err(|err| format!("Failed to deserialize title {}: {}", title_address, err)),
     }
 }
 
-fn print_title(titledata: &TitleData) -> Result<(), Box<dyn std::error::Error>>  {
-    let coa_url = std::str::from_utf8(&titledata.coat_of_arms)?;
-    let display_name = std::str::from_utf8(&titledata.display_name)?;
+fn print_title(titledata: &TitleData) -> Result<(), Box<dyn std::error::Error>> {
+    let coa_url = &titledata.coat_of_arms;
+    let display_name = &titledata.display_name;
     println!("Display Name: {}", display_name);
     println!("Coat of Arms: {}", coa_url);
     println!("Rank: {}", titledata.rank);
     println!("Kind: {}", titledata.kind);
-    println!("Required stake (SOL): {}", lamports_to_sol(titledata.required_stake_lamports));
-    println!("Sale price (SOL): {}", lamports_to_sol(titledata.sale_price_lamports));
+    println!(
+        "Required stake (SOL): {}",
+        lamports_to_sol(titledata.required_stake_lamports)
+    );
+    println!(
+        "Sale price (SOL): {}",
+        lamports_to_sol(titledata.sale_price_lamports)
+    );
     println!("Holder: {}", titledata.holder_house_address);
-    if titledata.liege_address != Pubkey::new(&[0;32]) {
+    if titledata.liege_address != Pubkey::new(&[0; 32]) {
         println!("Liege: {}", titledata.liege_address);
     }
     for vassal_address in titledata.vassal_addresses.iter() {
@@ -401,18 +390,6 @@ fn print_title(titledata: &TitleData) -> Result<(), Box<dyn std::error::Error>> 
     }
     Ok(())
 }
-
-// fn unix_timestamp_to_string(unix_timestamp: UnixTimestamp) -> String {
-//     format!(
-//         "{} (UnixTimestamp: {})",
-//         match NaiveDateTime::from_timestamp_opt(unix_timestamp, 0) {
-//             Some(ndt) =>
-//                 DateTime::<Utc>::from_utc(ndt, Utc).to_rfc3339_opts(SecondsFormat::Secs, true),
-//             None => "unknown".to_string(),
-//         },
-//         unix_timestamp,
-//     )
-// }
 
 fn create_house(
     rpc_client: &RpcClient,
@@ -422,20 +399,13 @@ fn create_house(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let house_addr = nobilitydao::get_house_address(&user_keypair.pubkey());
     println!("House Address: {}", house_addr);
-    let coat_of_arms: &mut [u8; 128] = &mut [0; 128];
-    let coa_str_bytes = coat_of_arms_str.as_bytes();
-    coat_of_arms[..coa_str_bytes.len()].clone_from_slice(&coa_str_bytes);
-
-    let display_name: &mut [u8; 128] = &mut [0; 128];
-    let display_name_str_bytes = display_name_str.as_bytes();
-    display_name[..display_name_str.len()].clone_from_slice(&display_name_str_bytes);
 
     let mut transaction = Transaction::new_with_payer(
         &[nobilitydao::instruction::create_house(
             &user_keypair.pubkey(),
             &house_addr,
-            &coat_of_arms,
-            &display_name,
+            coat_of_arms_str.to_string(),
+            display_name_str.to_string(),
         )],
         Some(&user_keypair.pubkey()),
     );
@@ -463,14 +433,6 @@ fn create_title(
     println!("House Address: {}", house_addr);
     println!("New title Address: {}", new_title_addr);
 
-    let coat_of_arms: &mut [u8; 128] = &mut [0; 128];
-    let coa_str_bytes = coat_of_arms_str.as_bytes();
-    coat_of_arms[..coa_str_bytes.len()].clone_from_slice(&coa_str_bytes);
-
-    let display_name: &mut [u8; 128] = &mut [0; 128];
-    let display_name_str_bytes = display_name_str.as_bytes();
-    display_name[..display_name_str.len()].clone_from_slice(&display_name_str_bytes);
-
     let mut transaction = Transaction::new_with_payer(
         &[nobilitydao::instruction::create_title(
             &user_keypair.pubkey(),
@@ -481,8 +443,8 @@ fn create_title(
             kind,
             required_stake_lamports,
             liege_vassal_index,
-            &coat_of_arms,
-            &display_name,
+            coat_of_arms_str.to_string(),
+            display_name_str.to_string(),
         )],
         Some(&user_keypair.pubkey()),
     );
@@ -493,232 +455,3 @@ fn create_title(
     println!("Done creating title!");
     Ok(())
 }
-
-// fn process_propose(
-//     rpc_client: &RpcClient,
-//     config: &Config,
-//     feature_proposal_keypair: &Keypair,
-//     distribution_file: String,
-//     percent_stake_required: u8,
-//     deadline: UnixTimestamp,
-//     confirm: bool,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     let distributor_token_address =
-//         spl_feature_proposal::get_distributor_token_address(&feature_proposal_keypair.pubkey());
-//     let feature_id_address =
-//         spl_feature_proposal::get_feature_id_address(&feature_proposal_keypair.pubkey());
-//     let acceptance_token_address =
-//         spl_feature_proposal::get_acceptance_token_address(&feature_proposal_keypair.pubkey());
-//     let mint_address = spl_feature_proposal::get_mint_address(&feature_proposal_keypair.pubkey());
-
-//     println!("Feature Id: {}", feature_id_address);
-//     println!("Token Mint Address: {}", mint_address);
-//     println!("Distributor Token Address: {}", distributor_token_address);
-//     println!("Acceptance Token Address: {}", acceptance_token_address);
-
-//     let vote_accounts = rpc_client.get_vote_accounts()?;
-//     let mut distribution = HashMap::new();
-//     for (pubkey, activated_stake) in vote_accounts
-//         .current
-//         .into_iter()
-//         .chain(vote_accounts.delinquent)
-//         .map(|vote_account| (vote_account.node_pubkey, vote_account.activated_stake))
-//     {
-//         distribution
-//             .entry(pubkey)
-//             .and_modify(|e| *e += activated_stake)
-//             .or_insert(activated_stake);
-//     }
-
-//     let tokens_to_mint: u64 = distribution.iter().map(|x| x.1).sum();
-//     let tokens_required = tokens_to_mint * percent_stake_required as u64 / 100;
-
-//     println!("Number of validators: {}", distribution.len());
-//     println!(
-//         "Tokens to be minted: {}",
-//         spl_feature_proposal::amount_to_ui_amount(tokens_to_mint)
-//     );
-//     println!(
-//         "Tokens required for acceptance: {} ({}%)",
-//         spl_feature_proposal::amount_to_ui_amount(tokens_required),
-//         percent_stake_required
-//     );
-
-//     println!("Token distribution file: {}", distribution_file);
-//     {
-//         let mut file = File::create(&distribution_file)?;
-//         file.write_all(b"recipient,amount\n")?;
-//         for (node_address, activated_stake) in distribution.iter() {
-//             file.write_all(format!("{},{}\n", node_address, activated_stake).as_bytes())?;
-//         }
-//     }
-
-//     let mut transaction = Transaction::new_with_payer(
-//         &[spl_feature_proposal::instruction::propose(
-//             &config.keypair.pubkey(),
-//             &feature_proposal_keypair.pubkey(),
-//             tokens_to_mint,
-//             AcceptanceCriteria {
-//                 tokens_required,
-//                 deadline,
-//             },
-//         )],
-//         Some(&config.keypair.pubkey()),
-//     );
-//     let blockhash = rpc_client.get_recent_blockhash()?.0;
-//     transaction.try_sign(&[&config.keypair, feature_proposal_keypair], blockhash)?;
-
-//     println!("JSON RPC URL: {}", config.json_rpc_url);
-
-//     println!();
-//     println!("Distribute the proposal tokens to all validators by running:");
-//     println!(
-//         "    $ solana-tokens distribute-spl-tokens \
-//                   --from {} \
-//                   --input-csv {} \
-//                   --db-path db.{} \
-//                   --fee-payer ~/.config/solana/id.json \
-//                   --owner <FEATURE_PROPOSAL_KEYPAIR>",
-//         distributor_token_address,
-//         distribution_file,
-//         &feature_proposal_keypair.pubkey().to_string()[..8]
-//     );
-//     println!(
-//         "    $ solana-tokens spl-token-balances \
-//                  --mint {} --input-csv {}",
-//         mint_address, distribution_file
-//     );
-//     println!();
-
-//     println!(
-//         "Once the distribution is complete, request validators vote for \
-//         the proposal by first looking up their token account address:"
-//     );
-//     println!(
-//         "    $ spl-token --owner ~/validator-keypair.json accounts {}",
-//         mint_address
-//     );
-//     println!("and then submit their vote by running:");
-//     println!(
-//         "    $ spl-token --owner ~/validator-keypair.json transfer <TOKEN_ACCOUNT_ADDRESS> ALL {}",
-//         acceptance_token_address
-//     );
-//     println!();
-//     println!("Periodically the votes must be tallied by running:");
-//     println!(
-//         "  $ spl-feature-proposal tally {}",
-//         feature_proposal_keypair.pubkey()
-//     );
-//     println!("Tallying is permissionless and may be run by anybody.");
-//     println!("Once this feature proposal is accepted, the {} feature will be activated at the next epoch.", feature_id_address);
-
-//     println!();
-//     println!(
-//         "Proposal will expire at {}",
-//         unix_timestamp_to_string(deadline)
-//     );
-//     println!();
-//     if !confirm {
-//         println!("Add --confirm flag to initiate the feature proposal");
-//         return Ok(());
-//     }
-//     rpc_client.send_and_confirm_transaction_with_spinner(&transaction)?;
-
-//     println!();
-//     println!("Feature proposal created!");
-//     Ok(())
-// }
-
-// fn process_tally(
-//     rpc_client: &RpcClient,
-//     config: &Config,
-//     feature_proposal_address: &Pubkey,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-//     let feature_proposal = get_feature_proposal(rpc_client, feature_proposal_address)?;
-
-//     let feature_id_address = spl_feature_proposal::get_feature_id_address(feature_proposal_address);
-//     let acceptance_token_address =
-//         spl_feature_proposal::get_acceptance_token_address(feature_proposal_address);
-
-//     println!("Feature Id: {}", feature_id_address);
-//     println!("Acceptance Token Address: {}", acceptance_token_address);
-
-//     match feature_proposal {
-//         FeatureProposal::Uninitialized => {
-//             return Err("Feature proposal is uninitialized".into());
-//         }
-//         FeatureProposal::Pending(acceptance_criteria) => {
-//             let acceptance_token_address =
-//                 spl_feature_proposal::get_acceptance_token_address(feature_proposal_address);
-//             let acceptance_token_balance = rpc_client
-//                 .get_token_account_balance(&acceptance_token_address)?
-//                 .amount
-//                 .parse::<u64>()
-//                 .unwrap_or(0);
-
-//             println!();
-//             println!(
-//                 "{} tokens required to accept the proposal",
-//                 spl_feature_proposal::amount_to_ui_amount(acceptance_criteria.tokens_required)
-//             );
-//             println!(
-//                 "{} tokens have been received",
-//                 spl_feature_proposal::amount_to_ui_amount(acceptance_token_balance)
-//             );
-//             println!(
-//                 "Proposal will expire at {}",
-//                 unix_timestamp_to_string(acceptance_criteria.deadline)
-//             );
-//             println!();
-
-//             // Don't bother issuing a transaction if it's clear the Tally won't succeed
-//             if acceptance_token_balance < acceptance_criteria.tokens_required
-//                 && (SystemTime::now()
-//                     .duration_since(UNIX_EPOCH)
-//                     .unwrap()
-//                     .as_secs() as UnixTimestamp)
-//                     < acceptance_criteria.deadline
-//             {
-//                 println!("Feature proposal pending");
-//                 return Ok(());
-//             }
-//         }
-//         FeatureProposal::Accepted { .. } => {
-//             println!("Feature proposal accepted");
-//             return Ok(());
-//         }
-//         FeatureProposal::Expired => {
-//             println!("Feature proposal expired");
-//             return Ok(());
-//         }
-//     }
-
-//     let mut transaction = Transaction::new_with_payer(
-//         &[spl_feature_proposal::instruction::tally(
-//             feature_proposal_address,
-//         )],
-//         Some(&config.keypair.pubkey()),
-//     );
-//     let blockhash = rpc_client.get_recent_blockhash()?.0;
-//     transaction.try_sign(&[&config.keypair], blockhash)?;
-
-//     rpc_client.send_and_confirm_transaction_with_spinner(&transaction)?;
-
-//     // Check the status of the proposal after the tally completes
-//     let feature_proposal = get_feature_proposal(rpc_client, feature_proposal_address)?;
-//     match feature_proposal {
-//         FeatureProposal::Uninitialized => Err("Feature proposal is uninitialized".into()),
-//         FeatureProposal::Pending { .. } => {
-//             println!("Feature proposal pending");
-//             Ok(())
-//         }
-//         FeatureProposal::Accepted { .. } => {
-//             println!("Feature proposal accepted");
-//             Ok(())
-//         }
-//         FeatureProposal::Expired => {
-//             println!("Feature proposal expired");
-//             Ok(())
-//         }
-//     }
-// }

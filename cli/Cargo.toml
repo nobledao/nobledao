@@ -2,8 +2,8 @@
 name = "nobilitydao-cli"
 version = "0.1.0"
 description = "Nobility DAO Program"
-authors = ["Nobility DAO Maintainers <michaeljedgar@gmail.com>"]
-repository = "https://github.com/mje-testing/nobility-dao"
+authors = ["Nobility DAO Maintainers <solanapope@gmail.com>"]
+repository = "https://github.com/nobledao/nobility-dao"
 license = "AGPL"
 edition = "2018"
 

@@ -19,9 +19,9 @@ pub enum TitleInstruction {
     /// 2. `[]` System program ID
     CreateHouse{
         /// Coat of arms URI. Last byte must be 0.
-        coat_of_arms: [u8; 128],
+        coat_of_arms: String,
         /// Display name for the house. Last byte must be 0.
-        display_name: [u8; 128],
+        display_name: String,
     },
     /// Create a new record
     ///
@@ -38,10 +38,10 @@ pub enum TitleInstruction {
         kind: u8,
         /// Required stake for holder of this title; will also be initial sale price.
         required_stake_lamports: u64,
-        /// Coat of arms URI. Last byte must be 0.
-        coat_of_arms: [u8; 128],
-        /// Display name for the house. Last byte must be 0.
-        display_name: [u8; 128],
+        /// Coat of arms URI. Last byte must be 0. Maximum length: 128.
+        coat_of_arms: String,
+        /// Display name for the house. Last byte must be 0. Maximum length: 128.
+        display_name: String,
         /// Address of liege title. All zeroes for root title.
         liege_address: Pubkey,
         /// Index of the title into the liege's vassal vector.
@@ -53,8 +53,8 @@ pub enum TitleInstruction {
 pub fn create_house(
     user_wallet_address: &Pubkey,
     house_address: &Pubkey,
-    coat_of_arms: &[u8; 128],
-    display_name: &[u8; 128],
+    coat_of_arms: String,
+    display_name: String,
 ) -> Instruction {
     Instruction {
         program_id: id(),
@@ -64,8 +64,8 @@ pub fn create_house(
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
         ],
         data: TitleInstruction::CreateHouse {
-            coat_of_arms: *coat_of_arms,
-            display_name: *display_name,
+            coat_of_arms: coat_of_arms,
+            display_name: display_name,
         }
         .try_to_vec().unwrap(),
     }
@@ -81,8 +81,8 @@ pub fn create_title(
     kind: u8,
     required_stake_lamports: u64,
     liege_vassal_index: u8,
-    coat_of_arms: &[u8; 128],
-    display_name: &[u8; 128],
+    coat_of_arms: String,
+    display_name: String,
 ) -> Instruction {
     Instruction {
         program_id: id(),
@@ -97,8 +97,8 @@ pub fn create_title(
             rank: rank,
             kind: kind,
             required_stake_lamports: required_stake_lamports,
-            coat_of_arms: *coat_of_arms,
-            display_name: *display_name,
+            coat_of_arms: coat_of_arms,
+            display_name: display_name,
             liege_address: *liege_address,
             liege_vassal_index: liege_vassal_index,
         }

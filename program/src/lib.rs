@@ -6,15 +6,11 @@ pub mod error;
 pub mod instruction;
 pub mod processor;
 pub mod state;
+pub mod utils;
 
 // Export current SDK types for downstream users building with a different SDK version
 pub use solana_program;
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    program_pack::Pack,
-    pubkey::Pubkey,
-    sysvar,
-};
+use solana_program::pubkey::Pubkey;
 
 solana_program::declare_id!("DG5iQsbdcPGEcCC36JXEQySyFUSW8PSR4jnch6zpTsJG");
 
@@ -27,12 +23,7 @@ fn get_house_address_and_bump_seed_internal(
     wallet_address: &Pubkey,
     noble_program_id: &Pubkey,
 ) -> (Pubkey, u8) {
-    Pubkey::find_program_address(
-        &[
-            &wallet_address.to_bytes(),
-        ],
-        noble_program_id,
-    )
+    Pubkey::find_program_address(&[&wallet_address.to_bytes()], noble_program_id)
 }
 
 /// Get the pubkey for the given title, using the Liege title and the vassal idnex.
@@ -45,12 +36,9 @@ fn get_title_address_and_bump_seed_internal(
     vassal_index: u8,
     noble_program_id: &Pubkey,
 ) -> (Pubkey, u8) {
-    let vassal_index_seed : &[u8] = &[vassal_index ; 32];
+    let vassal_index_seed: &[u8] = &[vassal_index; 32];
     Pubkey::find_program_address(
-        &[
-            &liege_address.to_bytes(),
-            vassal_index_seed,
-        ],
+        &[&liege_address.to_bytes(), vassal_index_seed],
         noble_program_id,
     )
 }

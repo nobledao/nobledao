@@ -6,7 +6,7 @@ use thiserror::Error;
 
 /// Errors that may be returned by the program.
 #[derive(Clone, Debug, Eq, Error, FromPrimitive, PartialEq)]
-pub enum RecordError {
+pub enum TitleError {
     /// Incorrect authority provided on update or delete
     #[error("Incorrect authority provided on update or delete")]
     IncorrectAuthority,
@@ -14,14 +14,18 @@ pub enum RecordError {
     /// Calculation overflow
     #[error("Calculation overflow")]
     Overflow,
+
+    /// Data type mismatched
+    #[error("Data type length mismatched")]
+    DataTypeMismatch,
 }
-impl From<RecordError> for ProgramError {
-    fn from(e: RecordError) -> Self {
+impl From<TitleError> for ProgramError {
+    fn from(e: TitleError) -> Self {
         ProgramError::Custom(e as u32)
     }
 }
-impl<T> DecodeError<T> for RecordError {
+impl<T> DecodeError<T> for TitleError {
     fn type_of() -> &'static str {
-        "Record Error"
+        "Title Error"
     }
 }
